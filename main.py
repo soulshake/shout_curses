@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import configparser
 import curses
 from math import ceil
 from shoutcast_data import ShoutCast
@@ -9,6 +9,74 @@ from os import getenv as getenv
 from os import path as path
 import dotenv
 from dotenv import load_dotenv, find_dotenv
+import logging
+from configparser import ConfigParser
+from IPython import embed
+import sys
+from xdg.BaseDirectory import load_first_config, save_config_path
+from xdg.IniFile import IniFile
+from dataclasses import dataclass
+from xdg.BaseDirectory import xdg_config_home
+import os
+
+@dataclass
+class Config(object):
+    def __init__(self):
+        api_key: str
+        volume: int
+        mute: bool
+        #config = configparser.ConfigParser()
+        self._config = {
+            "api_key": None,
+            "volume": None,
+            "mute": False,
+        }
+        yay: str = 'shout_curses'
+
+        fc = load_first_config('shout_curses')
+        if not fc:
+            save_config_path(yay)
+            fc = load_first_config('shout_curses')
+            ini = IniFile(fc)
+            #ini.write(fc)
+            embed()
+            #parser = ConfigParser()
+            #parser.add_section('default')
+            #parser.setdefault('default', {"mute": False})
+            #fc = load_first_config('shout_curses.ini')
+
+        #with open(fc, 'r') as f:
+            #data = f.read()
+        embed()
+        with open(fc, 'w') as f:
+            parser.write(fc)
+
+        embed(header='load me')
+
+    def getprop(self, property_name):
+        return self.parser.get('default', property_name, fallback=None)
+        #return self._config.get(property_name)
+
+    def setprop(self, property_name, value):
+        return self.getprop(property_name)
+
+config = Config()
+embed()
+
+sys.exit()
+config1 = load_first_config("shout_curses")
+config2 = configparser.SafeConfigParser()
+
+
+#parser = SafeConfigParser()
+#parser.read('simple.ini')
+
+#print(parser.get('bug_tracker', 'url'))
+embed()
+
+sys.exit()
+
+logging.basicConfig(filename='example.log', level=logging.DEBUG)
 
 load_dotenv(find_dotenv())
 
@@ -38,6 +106,7 @@ box = curses.newwin(box_height, width - 2, 1, 1)
 message_box = curses.newwin(3, width - 2, max_row + 3, 1)
 search_string = ""
 message_box_message = "Welcome to Shout Curses"
+message_box_message = "[a] up  [z] down  [s] fave  [d] unfave  [q] quit  [/] search  [space] pause [m] mute"
 message_box.box()
 box.box()
 
@@ -93,7 +162,7 @@ def draw_scroll_box():
             if i == row_num:
                 break
 
-# Applies the message box in the correct 
+# Applies the message box in the correct
 def message_box_apply(message):
     global message_box_message
     message_box_message = message
@@ -102,6 +171,7 @@ def message_box_apply(message):
 def draw_message_box():
     if row_exists(max_row + 6):
         message_extended = message_box_message + " " * width
+        message_box.addstr(1, 1, message_extended[0: width - 5])
         message_box.addstr(1, 1, message_extended[0: width - 5])
 
 # Draws the player status area
@@ -148,9 +218,10 @@ def get_row_end():
 x = screen.getch()
 while x != 27:
     height, width = screen.getmaxyx()
-    
+
     # Scroll box controll section
-    if x == curses.KEY_DOWN:
+    if x in [curses.KEY_DOWN, ord("j")]:
+        logging.info("got a j")
         if page == 1:
             if position < get_row_end():
                 position = position + 1
@@ -167,7 +238,11 @@ while x != 27:
             else:
                 page = page + 1
                 position = 1 + (max_row * (page - 1))
-    if x == curses.KEY_UP:
+
+    if x == ord("?"):
+        message_box_message = "wooga"
+
+    if x in [curses.KEY_UP, ord("k")]:
         if page == 1:
             if position > 1:
                 position = position - 1
@@ -177,11 +252,11 @@ while x != 27:
             else:
                 page = page - 1
                 position = max_row + (max_row * (page - 1))
-    if x == curses.KEY_LEFT:
+    if x in [curses.KEY_LEFT, ord("h")]:
         if page > 1:
             page = page - 1
             position = 1 + (max_row * (page - 1))
-    if x == curses.KEY_RIGHT:
+    if x in [curses.KEY_RIGHT, ord("l")]:
         if page < pages:
             page = page + 1
             position = (1 + (max_row * (page - 1)))
@@ -198,7 +273,7 @@ while x != 27:
         else:
             station_url = "Station URL not found"
         station_playing = vlc.get_play()
-    
+
     # Save highlighted station to favorites
     if x == ord("s") and row_num != 0:
         screen.erase()
@@ -229,7 +304,7 @@ while x != 27:
         pages = int(ceil(row_num / max_row))
         page = current_page
         position = current_position
-    
+
     # Remove highlighted station from favorites
     if x == ord("d") and row_num != 0:
         screen.erase()
@@ -266,7 +341,7 @@ while x != 27:
     # Toggle Mute
     if x == ord ("m"):
         station_mute = vlc.toggle_mute()
-    
+
     # Toggle pause and mute
     if x == ord (" "):
         station_playing = vlc.toggle_play()
@@ -305,7 +380,7 @@ while x != 27:
             if isinstance(search_items['response']['data']['stationlist']['station'], list):
                 favorites = user_data.get_saved_station_ids()
                 search_item_titles = list(map(lambda x: "❤ " + x['name'] if int(x['id']) in favorites else x['name'], search_items['response']['data']['stationlist']['station']))
-                search_item_stations = search_items['response']['data']['stationlist']['station'] 
+                search_item_stations = search_items['response']['data']['stationlist']['station']
             else:
                 search_item_titles = []
                 search_item_stations = []
